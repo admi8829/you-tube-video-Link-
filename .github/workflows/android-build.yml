@@ -11,24 +11,42 @@ on:
       - main
       - master
 
-# Global environment variables to customize paths and folder configuration
-env:
-  # CHANGE THIS: Set this to the sub-folder name containing your package.json (e.g., mobile, src, app)
-  WORKING_DIRECTORY: mobile
-
 jobs:
   build-android:
     name: Build Android APK (React Native Release)
     runs-on: ubuntu-latest
 
-    # Sets defaults to run all script commands automatically in the sub-folder
-    defaults:
-      run:
-        working-directory: ${{ env.WORKING_DIRECTORY }}
-
     steps:
       - name: Checkout Repository
         uses: actions/checkout@v4
+
+      - name: Detect React Native Project Directory
+        id: detect
+        run: |
+          # Dynamically search for the folder holding package.json with react-native dependencies
+          DIR=$(find . -name "package.json" -not -path "*/node_modules/*" | while read -r file; do
+            dir=$(dirname "$file")
+            if grep -q '"react-native"' "$file"; then
+              echo "$dir"
+              break
+            fi
+          done)
+          
+          # Fallback to look for any package.json if no specific react-native config is present
+          if [ -z "$DIR" ]; then
+            DIR=$(find . -name "package.json" -not -path "*/node_modules/*" | head -n 1 | xargs dirname 2>/dev/null || echo ".")
+          fi
+          
+          # Clean ./ path prefix if present
+          DIR=$(echo "$DIR" | sed 's|^\./||')
+          
+          if [ -z "$DIR" ] || [ "$DIR" = "." ]; then
+            echo "dir=" >> $GITHUB_OUTPUT
+            echo "Detected React Native at repository root."
+          else
+            echo "dir=$DIR" >> $GITHUB_OUTPUT
+            echo "Detected React Native at sub-directory: $DIR"
+          fi
 
       - name: Set up Java Environment (JDK 17)
         uses: actions/setup-java@v4
@@ -40,13 +58,14 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: '18'
-          # Safely configure dependency caching only when a lockfile is actually found in the WORKING_DIRECTORY environment path
-          cache: ${{ (hashFiles(format('{0}/package-lock.json', env.WORKING_DIRECTORY)) != '' && 'npm') || (hashFiles(format('{0}/yarn.lock', env.WORKING_DIRECTORY)) != '' && 'yarn') || '' }}
+          # Safely configure dependency caching only when a lockfile is actually found in the detected workspace
+          cache: ${{ (hashFiles(format('{0}/package-lock.json', steps.detect.outputs.dir || '.')) != '' && 'npm') || (hashFiles(format('{0}/yarn.lock', steps.detect.outputs.dir || '.')) != '' && 'yarn') || '' }}
           cache-dependency-path: |
-            ${{ env.WORKING_DIRECTORY }}/package-lock.json
-            ${{ env.WORKING_DIRECTORY }}/yarn.lock
+            ${{ steps.detect.outputs.dir || '.' }}/package-lock.json
+            ${{ steps.detect.outputs.dir || '.' }}/yarn.lock
 
       - name: Install Node.js Dependencies
+        working-directory: ${{ steps.detect.outputs.dir || '.' }}
         run: |
           if [ -f "package-lock.json" ]; then
             npm ci
@@ -57,6 +76,7 @@ jobs:
           fi
 
       - name: Verify TypeScript & Code Standards
+        working-directory: ${{ steps.detect.outputs.dir || '.' }}
         run: |
           npm run ts:check --if-present
           npm run lint --if-present
@@ -67,24 +87,24 @@ jobs:
           path: |
             ~/.gradle/caches
             ~/.gradle/wrapper
-          # Hashing target file paths correctly mapped inside subcollection paths
-          key: ${{ runner.os }}-gradle-${{ hashFiles(format('{0}/android/**/*.gradle*', env.WORKING_DIRECTORY), format('{0}/android/gradle-wrapper.properties', env.WORKING_DIRECTORY)) }}
+          # Hashing target file paths correctly mapped inside detected subdirectory path
+          key: ${{ runner.os }}-gradle-${{ hashFiles(format('{0}/android/**/*.gradle*', steps.detect.outputs.dir || '.'), format('{0}/android/gradle-wrapper.properties', steps.detect.outputs.dir || '.')) }}
           restore-keys: |
             ${{ runner.os }}-gradle-
 
       - name: Make Gradle Wrapper Executable
+        working-directory: ${{ steps.detect.outputs.dir || '.' }}
         run: chmod +x android/gradlew
 
       - name: Build Release APK
-        run: |
-          cd android
-          ./gradlew assembleRelease --no-daemon
+        working-directory: ${{ steps.detect.outputs.dir || '.' }}/android
+        run: ./gradlew assembleRelease --no-daemon
 
       - name: Sign Release APK
         uses: r0adkll/sign-android-release@v1
         id: sign_app
         with:
-          releaseDirectory: ${{ env.WORKING_DIRECTORY }}/android/app/build/outputs/apk/release
+          releaseDirectory: ${{ steps.detect.outputs.dir || '.' }}/android/app/build/outputs/apk/release
           signingKeyBase64: ${{ secrets.ANDROID_SIGNING_KEY }}
           alias: ${{ secrets.ANDROID_ALIAS }}
           keyStorePassword: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
@@ -96,6 +116,6 @@ jobs:
           name: AutoReframe-Android-Release-APK
           path: |
             ${{ steps.sign_app.outputs.signedReleaseFile }}
-            ${{ env.WORKING_DIRECTORY }}/android/app/build/outputs/apk/release/app-release.apk
+            ${{ steps.detect.outputs.dir || '.' }}/android/app/build/outputs/apk/release/app-release.apk
           if-no-files-found: warn
           retention-days: 14
