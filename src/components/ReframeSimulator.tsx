@@ -159,10 +159,10 @@ export const ReframeSimulator: React.FC = () => {
             {/* Speaker A (Left area) */}
             <div className="absolute top-[28%] left-[24%] transform -translate-x-1/2 -translate-y-1/2 flex flex-col items-center">
               <div
-                className={`w-14 h-14 rounded-full border-2 flex items-center justify-center transition ${
+                className={`w-14 h-14 rounded-full border-2 flex items-center justify-center transition duration-300 ${
                   currentTime >= 1.0 && currentTime <= 2.2
-                    ? "border-emerald-500 bg-emerald-500/10 shadow-[0_0_15px_rgba(16,185,129,0.3)]Scale(1.05)"
-                    : "border-slate-700 bg-slate-800"
+                    ? "border-emerald-500 bg-emerald-500/10 shadow-[0_0_15px_rgba(16,185,129,0.3)] scale-105"
+                    : "border-slate-700 bg-slate-800 scale-100"
                 }`}
               >
                 <div className="text-xs font-semibold text-slate-300">Host A</div>
@@ -173,10 +173,10 @@ export const ReframeSimulator: React.FC = () => {
             {/* Speaker B (Right area) */}
             <div className="absolute top-[32%] left-[76%] transform -translate-x-1/2 -translate-y-1/2 flex flex-col items-center">
               <div
-                className={`w-14 h-14 rounded-full border-2 flex items-center justify-center transition ${
+                className={`w-14 h-14 rounded-full border-2 flex items-center justify-center transition duration-300 ${
                   currentTime >= 2.8 && currentTime <= 4.2
-                    ? "border-emerald-500 bg-emerald-500/10 shadow-[0_0_15px_rgba(16,185,129,0.3)]Scale(1.05)"
-                    : "border-slate-700 bg-slate-800"
+                    ? "border-emerald-500 bg-emerald-500/10 shadow-[0_0_15px_rgba(16,185,129,0.3)] scale-105"
+                    : "border-slate-700 bg-slate-800 scale-100"
                 }`}
               >
                 <div className="text-xs font-semibold text-slate-300">Speaker B</div>
