@@ -1,4 +1,4 @@
-# Continuous Integration (Release Build Pipeline) for Android
+# Continuous Integration (Release Build Pipeline) for React Native Android
 name: Build Android APK
 
 on:
@@ -11,10 +11,20 @@ on:
       - main
       - master
 
+# Global environment variables to customize paths and folder configuration
+env:
+  # CHANGE THIS: Set this to the sub-folder name containing your package.json (e.g., mobile, src, app)
+  WORKING_DIRECTORY: mobile
+
 jobs:
   build-android:
-    name: Build Android APK (Flutter Release & Verification)
+    name: Build Android APK (React Native Release)
     runs-on: ubuntu-latest
+
+    # Sets defaults to run all script commands automatically in the sub-folder
+    defaults:
+      run:
+        working-directory: ${{ env.WORKING_DIRECTORY }}
 
     steps:
       - name: Checkout Repository
@@ -26,28 +36,53 @@ jobs:
           distribution: 'zulu'
           java-version: '17'
 
-      - name: Set up Flutter
-        uses: subosito/flutter-action@v2
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
         with:
-          channel: 'stable'
-          cache: true
+          node-version: '18'
+          # Cache config targeting the correct lockfile inside the sub-folder
+          cache: 'npm'
+          cache-dependency-path: '${{ env.WORKING_DIRECTORY }}/package-lock.json'
 
-      - name: Install Flutter Dependencies
-        run: flutter pub get
-
-      - name: Flutter Analyzer & Formatting Verification
+      - name: Install Node.js Dependencies
         run: |
-          flutter analyze --no-fatal-warnings
-          flutter format --set-exit-if-changed . || true
+          if [ -f "package-lock.json" ]; then
+            npm ci
+          elif [ -f "yarn.lock" ]; then
+            yarn install --frozen-lockfile
+          else
+            npm install
+          fi
+
+      - name: Verify TypeScript & Code Standards
+        run: |
+          npm run ts:check --if-present
+          npm run lint --if-present
+
+      - name: Cache Gradle Dependencies
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.gradle/caches
+            ~/.gradle/wrapper
+          # Hashing target file paths correctly mapped inside subcollection paths
+          key: ${{ runner.os }}-gradle-${{ hashFiles(format('{0}/android/**/*.gradle*', env.WORKING_DIRECTORY), format('{0}/android/gradle-wrapper.properties', env.WORKING_DIRECTORY)) }}
+          restore-keys: |
+            ${{ runner.os }}-gradle-
+
+      - name: Make Gradle Wrapper Executable
+        run: chmod +x android/gradlew
 
       - name: Build Release APK
-        run: flutter build apk --release
+        run: |
+          cd android
+          ./gradlew assembleRelease --no-daemon
 
       - name: Sign Release APK
         uses: r0adkll/sign-android-release@v1
         id: sign_app
         with:
-          releaseDirectory: build/app/outputs/flutter-apk
+          releaseDirectory: ${{ env.WORKING_DIRECTORY }}/android/app/build/outputs/apk/release
           signingKeyBase64: ${{ secrets.ANDROID_SIGNING_KEY }}
           alias: ${{ secrets.ANDROID_ALIAS }}
           keyStorePassword: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
@@ -57,6 +92,8 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: AutoReframe-Android-Release-APK
-          path: ${{ steps.sign_app.outputs.signedReleaseFile || 'build/app/outputs/flutter-apk/app-release.apk' }}
+          path: |
+            ${{ steps.sign_app.outputs.signedReleaseFile }}
+            ${{ env.WORKING_DIRECTORY }}/android/app/build/outputs/apk/release/app-release.apk
           if-no-files-found: warn
           retention-days: 14
