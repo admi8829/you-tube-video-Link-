@@ -1,0 +1,8 @@
+{
+  "name": "AutoReframe DevHub",
+  "description": "Mobile architecture playground, interactive FFmpeg simulator, and CI/CD workflow builder for AI-powered 9:16 vertical video reframing apps.",
+  "requestFramePermissions": [],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}
