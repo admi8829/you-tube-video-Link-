@@ -6,3 +6,13 @@ coverage/
 *.log
 .env*
 !.env.example
+
+# AI Studio DevHub local workspace environment files
+server.ts
+metadata.json
+vite.config.ts
+index.html
+tsconfig.json
+package.json
+/assets/
+/src/

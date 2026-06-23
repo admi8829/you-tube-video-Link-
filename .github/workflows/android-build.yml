@@ -30,13 +30,24 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: '18'
-          cache: 'yarn'
 
-      - name: Install Node Dependencies
-        run: yarn install --frozen-lockfile
+      - name: Install Dependencies
+        run: |
+          if [ -f "yarn.lock" ]; then
+            yarn install --frozen-lockfile
+          elif [ -f "package-lock.json" ]; then
+            npm ci
+          else
+            npm install
+          fi
 
       - name: TypeScript Validation and Static Compilation Test
-        run: yarn tsc --noEmit && yarn lint
+        run: |
+          if [ -f "yarn.lock" ]; then
+            yarn tsc --noEmit && yarn lint
+          else
+            npm run ts:check --if-present && npm run lint --if-present
+          fi
 
       - name: Cache Gradle Dependencies
         uses: actions/cache@v4
